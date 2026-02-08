@@ -150,6 +150,26 @@
                 <div><label class="label-tiny">CONTENT TYPE</label><select id="inp-type" onchange="Admin.toggleTypeUI()" class="input-field bg-[#151515]"><option value="movie">Movie</option><option value="series">TV Series</option></select></div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label class="label-tiny">TITLE</label><input id="inp-title" required class="input-field"></div><div><label class="label-tiny">GENRE</label><select id="inp-genre" class="input-field bg-[#151515]"></select></div></div>
                 <div class="grid grid-cols-3 gap-4"><div><label class="label-tiny">YEAR</label><input id="inp-year" type="number" placeholder="2024" class="input-field"></div><div><label class="label-tiny">RATING</label><input id="inp-rating" type="number" step="0.1" placeholder="8.5" class="input-field"></div><div><label class="label-tiny">QUALITY</label><select id="inp-quality" class="input-field bg-[#151515]"><option>4K HDR</option><option>HD 1080p</option></select></div></div>
+                
+                <!-- NEW: Description Field -->
+                <div><label class="label-tiny">DESCRIPTION / SYNOPSIS</label><textarea id="inp-description" rows="3" placeholder="Enter plot summary..." class="input-field resize-none"></textarea></div>
+                
+                <!-- NEW: Duration Field (Movies only) -->
+                <div id="duration-field"><label class="label-tiny">DURATION (e.g., 2h 15m)</label><input id="inp-duration" type="text" placeholder="2h 15m" class="input-field"></div>
+                
+                <!-- NEW: Cast Management -->
+                <div class="space-y-3">
+                    <label class="label-tiny">CAST & CREW</label>
+                    <div class="bg-white/5 p-4 rounded-lg border border-white/5 space-y-3">
+                        <div class="grid grid-cols-2 gap-2">
+                            <input id="cast-name" type="text" placeholder="Actor Name" class="input-field">
+                            <input id="cast-image" type="text" placeholder="Image URL (optional)" class="input-field font-mono text-xs">
+                        </div>
+                        <button type="button" onclick="Admin.addCast()" class="bg-white text-black px-4 py-2 rounded-lg font-bold text-xs w-full">Add Cast Member</button>
+                        <div id="cast-list" class="space-y-2 max-h-32 overflow-y-auto"></div>
+                    </div>
+                </div>
+                
                 <div class="grid grid-cols-2 gap-4"><div><label class="label-tiny">POSTER (Vertical)</label><input id="inp-poster" required placeholder="https://..." class="input-field font-mono text-xs"></div><div><label class="label-tiny">BACKDROP (Horizontal)</label><input id="inp-backdrop" required placeholder="https://..." class="input-field font-mono text-xs"></div></div>
                 <div id="movie-only-section"><label class="label-tiny">VIDEO URL (MP4 / M3U8)</label><input id="inp-url" placeholder="https://..." class="input-field font-mono text-xs"></div>
                 <div id="series-only-section" class="hidden space-y-3"><div class="bg-white/5 p-4 rounded-lg border border-white/5"><label class="label-tiny text-brand-500">ADD EPISODE</label><div class="grid grid-cols-6 gap-2 mb-2"><input id="ep-s" type="number" placeholder="S#" class="col-span-1 input-field text-center"><input id="ep-e" type="number" placeholder="E#" class="col-span-1 input-field text-center"><input id="ep-title" placeholder="Title" class="col-span-4 input-field"></div><div class="flex gap-2"><input id="ep-url" placeholder="Episode URL" class="flex-1 input-field font-mono text-xs"><button type="button" onclick="Admin.addEpisode()" class="bg-white text-black px-4 rounded-lg font-bold text-xs">Add</button></div></div><div class="max-h-40 overflow-y-auto border border-white/5 rounded-lg"><table class="w-full text-left text-xs"><tbody id="episodes-list" class="divide-y divide-white/5 bg-[#0a0a0a]"></tbody></table></div></div>
@@ -183,6 +203,7 @@
         window.Admin = {
             data: { movies: [], categories: [] },
             tempEpisodes: [],
+            tempCast: [], // NEW: Temporary cast storage
 
             init: async () => {
                 await Admin.fetchData();
@@ -270,12 +291,16 @@
 
             toggleTypeUI: () => {
                 const type = document.getElementById('inp-type').value;
+                const durationField = document.getElementById('duration-field');
+                
                 if(type === 'series') {
                     document.getElementById('movie-only-section').classList.add('hidden');
                     document.getElementById('series-only-section').classList.remove('hidden');
+                    durationField.classList.add('hidden'); // Hide duration for series
                 } else {
                     document.getElementById('movie-only-section').classList.remove('hidden');
                     document.getElementById('series-only-section').classList.add('hidden');
+                    durationField.classList.remove('hidden'); // Show duration for movies
                 }
             },
 
@@ -301,11 +326,48 @@
                 document.getElementById('episodes-list').innerHTML = Admin.tempEpisodes.map((ep, i) => `<tr class="group hover:bg-white/5"><td class="p-2 text-gray-400 font-mono">S${ep.s}:E${ep.e}</td><td class="p-2 text-white font-medium">${ep.title}</td><td class="p-2 text-right"><button type="button" onclick="Admin.removeEpisode(${i})" class="text-red-500 opacity-0 group-hover:opacity-100">Remove</button></td></tr>`).join('');
             },
 
+            // NEW: Cast Management Functions
+            addCast: () => {
+                const name = document.getElementById('cast-name').value.trim();
+                const image = document.getElementById('cast-image').value.trim();
+                
+                if(name) {
+                    Admin.tempCast.push({ name, image: image || '' });
+                    Admin.renderCastList();
+                    document.getElementById('cast-name').value = '';
+                    document.getElementById('cast-image').value = '';
+                }
+            },
+
+            removeCast: (idx) => {
+                Admin.tempCast.splice(idx, 1);
+                Admin.renderCastList();
+            },
+
+            renderCastList: () => {
+                const list = document.getElementById('cast-list');
+                if(Admin.tempCast.length === 0) {
+                    list.innerHTML = '<p class="text-xs text-gray-500 text-center py-2">No cast members added</p>';
+                } else {
+                    list.innerHTML = Admin.tempCast.map((cast, i) => `
+                        <div class="flex items-center justify-between p-2 bg-black/50 rounded border border-white/5 group">
+                            <div class="flex items-center gap-2 flex-1">
+                                ${cast.image ? `<img src="${cast.image}" class="w-8 h-8 rounded-full object-cover bg-gray-800">` : `<div class="w-8 h-8 rounded-full bg-gray-800"></div>`}
+                                <span class="text-xs text-white font-medium">${cast.name}</span>
+                            </div>
+                            <button type="button" onclick="Admin.removeCast(${i})" class="text-red-500 opacity-0 group-hover:opacity-100 text-xs">Remove</button>
+                        </div>
+                    `).join('');
+                }
+            },
+
             openModal: (id = null) => {
                 document.getElementById('movie-form').reset();
                 document.getElementById('inp-id').value = '';
                 Admin.tempEpisodes = [];
+                Admin.tempCast = []; // NEW: Reset cast
                 Admin.renderEpisodeList();
+                Admin.renderCastList(); // NEW: Render empty cast
                 document.getElementById('inp-type').value = 'movie';
                 Admin.toggleTypeUI();
 
@@ -323,6 +385,14 @@
                         document.getElementById('inp-backdrop').value = m.backdrop;
                         document.getElementById('inp-trending').checked = m.trending;
                         document.getElementById('inp-top10').checked = m.top10;
+                        
+                        // NEW: Load description, duration, cast
+                        document.getElementById('inp-description').value = m.description || '';
+                        document.getElementById('inp-duration').value = m.duration || '';
+                        if(m.cast && Array.isArray(m.cast)) {
+                            Admin.tempCast = m.cast.map(c => typeof c === 'string' ? {name: c, image: ''} : c);
+                            Admin.renderCastList();
+                        }
 
                         if(m.type === 'series' && m.episodes) {
                             Admin.tempEpisodes = m.episodes;
@@ -353,10 +423,17 @@
                     backdrop: document.getElementById('inp-backdrop').value,
                     trending: document.getElementById('inp-trending').checked,
                     top10: document.getElementById('inp-top10').checked,
+                    description: document.getElementById('inp-description').value, // NEW
+                    cast: Admin.tempCast, // NEW: Save cast array
                     updatedAt: new Date().toISOString()
                 };
 
-                if(type === 'series') { data.episodes = Admin.tempEpisodes; delete data.url; } 
+                // Add duration for movies only
+                if(type === 'movie') {
+                    data.duration = document.getElementById('inp-duration').value || '2h 15m';
+                }
+
+                if(type === 'series') { data.episodes = Admin.tempEpisodes; delete data.url; delete data.duration; } 
                 else { data.url = document.getElementById('inp-url').value; delete data.episodes; }
 
                 try {
